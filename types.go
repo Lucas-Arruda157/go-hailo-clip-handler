@@ -17,9 +17,16 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	goconcurrentlogger "github.com/ralvarezdev/go-concurrent-logger"
+	gostringsconvert "github.com/ralvarezdev/go-strings/convert"
 )
 
 type (
+	// Classification is the struct for a Hailo CLIP classification
+	Classification struct {
+		Label      string
+		Confidence float32
+	}
+
 	// DefaultHandler is the handler for the Hailo CLIP application
 	DefaultHandler struct {
 		handlerMutex                     sync.Mutex
@@ -29,8 +36,7 @@ type (
 		runClipPath                      string
 		positiveLabels                   []string
 		negativeLabels                   []string
-		classificationHandler            ClassificationHandler
-		classification                   Classification
+		classification                   *Classification
 		stdoutLinesRead                  int
 		clipApplicationInitialized       bool
 		logger                           goconcurrentlogger.Logger
@@ -40,6 +46,83 @@ type (
 		minimumConfidenceThreshold       float32
 	}
 )
+
+// NewClassification creates a new Classification instance.
+//
+// Parameters:
+//
+// label: The label for the classification.
+// confidence: The confidence score for the classification.
+//
+// Returns:
+//
+// A pointer to a Classification instance or an error if any parameter is invalid.
+func NewClassification(
+	label string,
+	confidence float32,
+) (*Classification, error) {
+	// Check if the confidence is within the valid range [0.0, 1.0]
+	if confidence < 0.0 || confidence > 1.0 {
+		return nil, fmt.Errorf(
+			"confidence must be in [0.0, 1.0], got %f",
+			confidence,
+		)
+	}
+
+	// Create a new Classification instance
+	classification := &Classification{
+		Label:      label,
+		Confidence: confidence,
+	}
+
+	return classification, nil
+}
+
+// NewClassificationFromString creates a new Classification instance from a string.
+//
+// Parameters:
+//
+// s: The string representation of the classification in the format "label confidence".
+//
+// Returns:
+//
+// A pointer to a Classification instance or an error if the string is invalid.
+func NewClassificationFromString(s string) (*Classification, error) {
+	// Split the string into fields
+	fields := strings.Fields(s)
+	label := strings.Join(fields[:len(fields)-1], " ")
+	confidenceStr := fields[len(fields)-1]
+
+	// Parse the confidence
+	var confidence float32
+	if err := gostringsconvert.ToFloat32(
+		confidenceStr,
+		&confidence,
+	); err != nil {
+		return nil, fmt.Errorf("failed to parse confidence: %w", err)
+	}
+
+	// Create a new Classification instance
+	return NewClassification(label, confidence)
+}
+
+// GetLabel returns the label of the classification.
+//
+// Returns:
+//
+// The label of the classification.
+func (c *Classification) GetLabel() string {
+	return c.Label
+}
+
+// GetConfidence returns the confidence score of the classification.
+//
+// Returns:
+//
+// The confidence score of the classification.
+func (c *Classification) GetConfidence() float32 {
+	return c.Confidence
+}
 
 // NewDefaultHandler creates a new DefaultHandler instance.
 //
@@ -51,7 +134,6 @@ type (
 // positiveLabels: Slice of positive labels for classification.
 // negativeLabels: Slice of negative labels for classification (optional, can be nil).
 // minimumConfidenceThreshold: Minimum confidence threshold for valid classifications.
-// classificationHandler: Handler to parse inference lines from the Hailo CLIP application (optional, can be nil).
 // logger: Logger instance for logging messages.
 //
 // Returns:
@@ -64,7 +146,6 @@ func NewDefaultHandler(
 	positiveLabels []string,
 	negativeLabels []string,
 	minimumConfidenceThreshold float32,
-	classificationHandler ClassificationHandler,
 	logger goconcurrentlogger.Logger,
 ) (*DefaultHandler, error) {
 	// Check if the logger is nil
@@ -106,11 +187,6 @@ func NewDefaultHandler(
 	// Check if the minimumConfidenceThreshold is valid
 	if minimumConfidenceThreshold < 0.0 || minimumConfidenceThreshold > 1.0 {
 		return nil, ErrInvalidMinimumConfidenceThreshold
-	}
-
-	// Check if the classificationHandler is nil
-	if classificationHandler == nil {
-		return nil, ErrNilClassificationHandler
 	}
 
 	// Create a new DefaultHandler instance
@@ -555,7 +631,7 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 	}
 
 	// Create a classification from the given string
-	classification, err := h.classificationHandler.ParseLine(line)
+	classification, err := NewClassificationFromString(line)
 	if err != nil {
 		h.handlerLoggerProducer.Warning(
 			fmt.Sprintf(
@@ -597,7 +673,7 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 // Returns:
 //
 // A copy of the current classification or nil if there is no classification, along with an error if any issue occurs.
-func (h *DefaultHandler) GetClassification() (Classification, error) {
+func (h *DefaultHandler) GetClassification() (*Classification, error) {
 	// Lock the classification for reading
 	h.classificationMutex.RLock()
 	defer h.classificationMutex.RUnlock()
@@ -607,12 +683,9 @@ func (h *DefaultHandler) GetClassification() (Classification, error) {
 		return nil, nil
 	}
 
-	// Create a copy of the classification using the classification handler
-	classificationCopy, err := h.classificationHandler.CreateCopy(h.classification)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create copy of classification: %w", err)
-	}
-	return classificationCopy, nil
+	// Create a copy of the classification
+	classificationCopy := *h.classification
+	return &classificationCopy, nil
 }
 
 // handleStderrLine processes a single line from stderr.
