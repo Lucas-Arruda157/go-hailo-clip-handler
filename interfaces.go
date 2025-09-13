@@ -1,4 +1,4 @@
-package clip
+package go_hailo_clip_handler
 
 import (
 	"context"
