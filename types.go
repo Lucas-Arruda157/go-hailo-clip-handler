@@ -176,11 +176,9 @@ func NewDefaultHandler(
 	}
 
 	// Check if any negative label is empty
-	if negativeLabels != nil {
-		for _, label := range negativeLabels {
-			if strings.TrimSpace(label) == "" {
-				return nil, ErrEmptyNegativeLabel
-			}
+	for _, label := range negativeLabels {
+		if strings.TrimSpace(label) == "" {
+			return nil, ErrEmptyNegativeLabel
 		}
 	}
 
