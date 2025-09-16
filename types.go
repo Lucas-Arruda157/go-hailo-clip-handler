@@ -255,10 +255,14 @@ func (h *DefaultHandler) generateEmbeddingsJSONContent() string {
 
 // GenerateEmbeddings generates CLIP embeddings by executing the specified script.
 //
+// Parameters:
+//
+// ctx: Context for managing cancellation and timeouts.
+//
 // Returns:
 //
 // An error if any issue occurs during the execution of the script.
-func (h *DefaultHandler) GenerateEmbeddings() error {
+func (h *DefaultHandler) GenerateEmbeddings(ctx context.Context) error {
 	// Check if the generateClipEmbeddingsPath is empty
 	if h.generateClipEmbeddingsPath == "" {
 		return ErrEmptyGenerateEmbeddingsPath
@@ -318,7 +322,7 @@ func (h *DefaultHandler) GenerateEmbeddings() error {
 	}
 
 	// Execute the command
-	cmd := exec.Command(h.generateClipEmbeddingsPath, args...)
+	cmd := exec.CommandContext(ctx, h.generateClipEmbeddingsPath, args...)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -560,6 +564,14 @@ func (h *DefaultHandler) scanLines(
 	for sc.Scan() {
 		select {
 		case <-ctx.Done():
+			h.handlerLoggerProducer.Info(
+				fmt.Sprintf(
+					"Context done while reading lines from %s: %v",
+					tag,
+					ctx.Err(),
+				),
+			)
+			// Return context error
 			return ctx.Err()
 		default:
 			// Read the line
