@@ -460,24 +460,32 @@ func (h *DefaultHandler) runToWrap(ctx context.Context, stopFn func()) error {
 		return fmt.Errorf("error reading lines: %w", err)
 	}
 
+	// Log the process exit
+	h.handlerLoggerProducer.Info("CLIP process exiting...")
+
 	// Close the stdout and stderr pipes
-	if err = stdout.Close(); err != nil {
-		return fmt.Errorf("stdout close error: %w", err)
-	}
-	if err = stderr.Close(); err != nil {
-		return fmt.Errorf("stderr close error: %w", err)
-	}
+    _ = stdout.Close()
+    _ = stderr.Close()
 
-	// Signal the process to stop
-	_ = cmd.Process.Signal(os.Interrupt) // Unix
+    // Signal the process to stop (SIGINT)
+    _ = cmd.Process.Signal(os.Interrupt)
 
-	// Sleep for a grace period to allow clean shutdown
-	time.Sleep(CloseTimeout)
+    // Wait for the process to exit or timeout
+    done := make(chan struct{})
+    go func() {
+        cmd.Wait()
+        close(done)
+    }()
 
-	// Hard kill fallback if still running after grace period
-	if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
-		_ = cmd.Process.Kill()
-	}
+    select {
+    case <-done:
+        // Process exited gracefully
+		h.handlerLoggerProducer.Info("CLIP process exited gracefully")
+    case <-time.After(CloseTimeout):
+        // Timeout, force kill
+        _ = cmd.Process.Kill()
+		h.handlerLoggerProducer.Warning("CLIP process killed after timeout")
+    }
 	return nil
 }
 
