@@ -1,5 +1,5 @@
-github.com/ralvarezdev/go-concurrent-logger v0.1.1 h1:90oGDkInTattnUEnoWDhfvfav1tWf+VsVxy6UaPFkhM=
-github.com/ralvarezdev/go-concurrent-logger v0.1.1/go.mod h1:/T1w3OR/3ja6Ir6c/PauLjS6StDzU8ag3dAqvQr2l5E=
+github.com/ralvarezdev/go-concurrent-logger v0.1.4 h1:WGrVrzEdjC4GAjbIC3VShNVo8S53SkYFqti0woXqpbg=
+github.com/ralvarezdev/go-concurrent-logger v0.1.4/go.mod h1:gjU7lyMbdgVOaVDatFgtM77YLZmYedZaMFy/xfAM/XY=
 github.com/ralvarezdev/go-context v0.0.1 h1:FInuzYGKiPBenD6+doVrrvu6C2s/Oh93h6lO7rWujMI=
 github.com/ralvarezdev/go-context v0.0.1/go.mod h1:wOyMbWyhhM8GwT3bzZ6Gvx8rJQfAXYpDwN9PUB7uR0M=
 github.com/ralvarezdev/go-crypto v0.6.4 h1:eX257KaSWGa4zU+COX7Ja0yzbkAPdwRAtPlDaejLWqE=

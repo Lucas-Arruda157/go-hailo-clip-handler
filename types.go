@@ -44,6 +44,7 @@ type (
 		generateEmbeddingsLoggerProducer goconcurrentlogger.LoggerProducer
 		embeddingsJSONPath               string
 		minimumConfidenceThreshold       float32
+		debug bool
 	}
 )
 
@@ -135,6 +136,7 @@ func (c *Classification) GetConfidence() float32 {
 // negativeLabels: Slice of negative labels for classification (optional, can be nil).
 // minimumConfidenceThreshold: Minimum confidence threshold for valid classifications.
 // logger: Logger instance for logging messages.
+// debug: Whether to enable debug logging.
 //
 // Returns:
 //
@@ -147,6 +149,7 @@ func NewDefaultHandler(
 	negativeLabels []string,
 	minimumConfidenceThreshold float32,
 	logger goconcurrentlogger.Logger,
+	debug bool,
 ) (*DefaultHandler, error) {
 	// Check if the logger is nil
 	if logger == nil {
@@ -196,6 +199,7 @@ func NewDefaultHandler(
 		negativeLabels:             negativeLabels,
 		minimumConfidenceThreshold: minimumConfidenceThreshold,
 		logger:                     logger,
+		debug:                      debug,
 	}
 
 	return handler, nil
@@ -271,6 +275,7 @@ func (h *DefaultHandler) GenerateEmbeddings(ctx context.Context) error {
 	// Create a logger producer
 	generateEmbeddingsLoggerProducer, err := h.logger.NewProducer(
 		GenerateEmbeddingsLoggerProducerTag,
+		h.debug,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create generate embeddings logger producer: %w", err)
@@ -525,6 +530,7 @@ func (h *DefaultHandler) Run(ctx context.Context, stopFn func()) error {
 	// Create a logger producer
 	handlerLoggerProducer, err := h.logger.NewProducer(
 		HandlerLoggerProducerTag,
+		h.debug,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create handler logger producer: %w", err)
