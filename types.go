@@ -461,31 +461,32 @@ func (h *DefaultHandler) runToWrap(ctx context.Context, stopFn func()) error {
 	}
 
 	// Log the process exit
+
 	h.handlerLoggerProducer.Info("CLIP process exiting...")
 
 	// Close the stdout and stderr pipes
-    _ = stdout.Close()
-    _ = stderr.Close()
+	_ = stdout.Close()
+	_ = stderr.Close()
 
-    // Signal the process to stop (SIGINT)
-    _ = cmd.Process.Signal(os.Interrupt)
+	// Signal the process to stop (SIGINT)
+	_ = cmd.Process.Signal(os.Interrupt)
 
-    // Wait for the process to exit or timeout
-    done := make(chan struct{})
-    go func() {
-        cmd.Wait()
-        close(done)
-    }()
+	// Wait for the process to exit or timeout
+	done := make(chan struct{})
+	go func() {
+		cmd.Wait()
+		close(done)
+	}()
 
-    select {
-    case <-done:
-        // Process exited gracefully
+	select {
+	case <-done:
+		// Process exited gracefully
 		h.handlerLoggerProducer.Info("CLIP process exited gracefully")
-    case <-time.After(CloseTimeout):
-        // Timeout, force kill
-        _ = cmd.Process.Kill()
+	case <-time.After(CloseTimeout):
+		// Timeout, force kill
+		_ = cmd.Process.Kill()
 		h.handlerLoggerProducer.Warning("CLIP process killed after timeout")
-    }
+	}
 	return nil
 }
 
@@ -662,25 +663,29 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 
 	// Check if the confidence is below the threshold
 	if classification.GetConfidence() < h.minimumConfidenceThreshold {
-		h.handlerLoggerProducer.Info(
-			fmt.Sprintf(
-				"Ignoring classification of label '%s' with low confidence: %f",
-				classification.GetLabel(),
-				classification.GetConfidence(),
-			),
-		)
+		if h.handlerLoggerProducer.IsDebug() {
+			h.handlerLoggerProducer.Debug(
+				fmt.Sprintf(
+					"Ignoring classification of label '%s' with low confidence: %f",
+					classification.GetLabel(),
+					classification.GetConfidence(),
+				),
+			)
+		}
 		return nil
 	}
 
 	// Update the current classification
 	if h.classification != classification {
-		h.handlerLoggerProducer.Info(
-			fmt.Sprintf(
-				"New classification detected for label '%s' with confidence: %f",
-				classification.GetLabel(),
-				classification.GetConfidence(),
-			),
-		)
+		if h.handlerLoggerProducer.IsDebug() {
+			h.handlerLoggerProducer.Debug(
+				fmt.Sprintf(
+					"New classification detected for label '%s' with confidence: %f",
+					classification.GetLabel(),
+					classification.GetConfidence(),
+				),
+			)
+		}
 	}
 	h.classification = classification
 	return nil
