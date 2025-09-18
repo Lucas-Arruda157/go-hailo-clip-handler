@@ -44,7 +44,7 @@ type (
 		generateEmbeddingsLoggerProducer goconcurrentlogger.LoggerProducer
 		embeddingsJSONPath               string
 		minimumConfidenceThreshold       float32
-		debug bool
+		debug                            bool
 	}
 )
 
@@ -278,7 +278,10 @@ func (h *DefaultHandler) GenerateEmbeddings(ctx context.Context) error {
 		h.debug,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create generate embeddings logger producer: %w", err)
+		return fmt.Errorf(
+			"failed to create generate embeddings logger producer: %w",
+			err,
+		)
 	}
 	h.generateEmbeddingsLoggerProducer = generateEmbeddingsLoggerProducer
 	defer h.generateEmbeddingsLoggerProducer.Close()
