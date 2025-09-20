@@ -541,12 +541,14 @@ func (h *DefaultHandler) Run(ctx context.Context, stopFn func()) error {
 	h.handlerLoggerProducer = handlerLoggerProducer
 	defer h.handlerLoggerProducer.Close()
 
-	return goconcurrentlogger.LogOnError(
-		func() error {
+	return goconcurrentlogger.StopContextAndLogOnError(
+		ctx,
+		stopFn,
+		func(ctx context.Context) error {
 			return h.runToWrap(ctx, stopFn)
 		},
 		h.handlerLoggerProducer,
-	)
+	)()
 }
 
 // scanLines reads lines from the provided reader and processes them using the given lineHandler.
