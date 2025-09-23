@@ -14,8 +14,17 @@ const (
 	// EmbeddingsJSONNegativeKeyName is the key name for negative embeddings in the JSON
 	EmbeddingsJSONNegativeKeyName = "negative"
 
-	// HailoClipApplicationInitializedMessage is the message printed on stdout when the Hailo CLIP application is initialized
-	HailoClipApplicationInitializedMessage = "Calling the Hailo CLIP application..."
+	// HailoCLIPApplicationInitialized is the message printed on stdout when the Hailo CLIP application is initialized
+	HailoCLIPApplicationInitialized = "Calling the Hailo CLIP application..."
+
+	// HailoCLIPApplicationInitializedMessage is the message to log when the Hailo CLIP application has been initialized
+	HailoCLIPApplicationInitializedMessage = "Hailo CLIP application initialized"
+
+	// HailoCLIPApplicationStarted is the message printed on stdout when the Hailo CLIP application has started
+	HailoCLIPApplicationStarted = "picamera_process started"
+
+	// HailoCLIPApplicationStartedMessage is the message to log when the Hailo CLIP application has started
+	HailoCLIPApplicationStartedMessage = "Hailo CLIP application started"
 
 	// NoClassification is the message printed on stdout when there is no classification
 	NoClassification = "None"

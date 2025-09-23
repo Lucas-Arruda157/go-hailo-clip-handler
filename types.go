@@ -32,13 +32,14 @@ type (
 		handlerMutex                     sync.Mutex
 		classificationMutex              sync.RWMutex
 		isRunning                        atomic.Bool
-		generateClipEmbeddingsPath       string
-		runClipPath                      string
+		generateCLIPEmbeddingsPath       string
+		runCLIPPath                      string
 		positiveLabels                   []string
 		negativeLabels                   []string
 		classification                   *Classification
 		stdoutLinesRead                  int
-		clipApplicationInitialized       bool
+		clipApplicationInitialized       atomic.Bool
+		clipApplicationStarted           atomic.Bool
 		logger                           goconcurrentlogger.Logger
 		handlerLoggerProducer            goconcurrentlogger.LoggerProducer
 		generateEmbeddingsLoggerProducer goconcurrentlogger.LoggerProducer
@@ -129,9 +130,9 @@ func (c *Classification) GetConfidence() float32 {
 //
 // Parameters:
 //
-// generateClipEmbeddingsPath: Path to the .sh file that generates CLIP embeddings.
+// generateCLIPEmbeddingsPath: Path to the .sh file that generates CLIP embeddings.
 // embeddingsJSONPath: Path to the embeddings JSON file.
-// runClipPath: Path to the .sh file that runs CLIP.
+// runCLIPPath: Path to the .sh file that runs CLIP.
 // positiveLabels: Slice of positive labels for classification.
 // negativeLabels: Slice of negative labels for classification (optional, can be nil).
 // minimumConfidenceThreshold: Minimum confidence threshold for valid classifications.
@@ -142,9 +143,9 @@ func (c *Classification) GetConfidence() float32 {
 //
 // A pointer to a DefaultHandler instance or an error if any parameter is invalid.
 func NewDefaultHandler(
-	generateClipEmbeddingsPath,
+	generateCLIPEmbeddingsPath,
 	embeddingsJSONPath string,
-	runClipPath string,
+	runCLIPPath string,
 	positiveLabels []string,
 	negativeLabels []string,
 	minimumConfidenceThreshold float32,
@@ -156,9 +157,9 @@ func NewDefaultHandler(
 		return nil, goconcurrentlogger.ErrNilLogger
 	}
 
-	// Check if the runClipPath is empty
-	if runClipPath == "" {
-		return nil, ErrEmptyRunClipPath
+	// Check if the runCLIPPath is empty
+	if runCLIPPath == "" {
+		return nil, ErrEmptyRunCLIPPath
 	}
 
 	// Check if the positiveLabels is nil
@@ -192,9 +193,9 @@ func NewDefaultHandler(
 
 	// Create a new DefaultHandler instance
 	handler := &DefaultHandler{
-		generateClipEmbeddingsPath: generateClipEmbeddingsPath,
+		generateCLIPEmbeddingsPath: generateCLIPEmbeddingsPath,
 		embeddingsJSONPath:         embeddingsJSONPath,
-		runClipPath:                runClipPath,
+		runCLIPPath:                runCLIPPath,
 		positiveLabels:             positiveLabels,
 		negativeLabels:             negativeLabels,
 		minimumConfidenceThreshold: minimumConfidenceThreshold,
@@ -267,8 +268,8 @@ func (h *DefaultHandler) generateEmbeddingsJSONContent() string {
 //
 // An error if any issue occurs during the execution of the script.
 func (h *DefaultHandler) GenerateEmbeddings(ctx context.Context) error {
-	// Check if the generateClipEmbeddingsPath is empty
-	if h.generateClipEmbeddingsPath == "" {
+	// Check if the generateCLIPEmbeddingsPath is empty
+	if h.generateCLIPEmbeddingsPath == "" {
 		return ErrEmptyGenerateEmbeddingsPath
 	}
 
@@ -311,13 +312,13 @@ func (h *DefaultHandler) GenerateEmbeddings(ctx context.Context) error {
 	}
 
 	// Check if the generate embeddings executable exists
-	if _, err := os.Stat(h.generateClipEmbeddingsPath); errors.Is(
+	if _, err := os.Stat(h.generateCLIPEmbeddingsPath); errors.Is(
 		err,
 		os.ErrNotExist,
 	) {
 		return fmt.Errorf(
 			"generate embeddings executable not found at path: %s",
-			h.generateClipEmbeddingsPath,
+			h.generateCLIPEmbeddingsPath,
 		)
 	}
 
@@ -330,7 +331,7 @@ func (h *DefaultHandler) GenerateEmbeddings(ctx context.Context) error {
 	}
 
 	// Execute the command
-	cmd := exec.CommandContext(ctx, h.generateClipEmbeddingsPath, args...)
+	cmd := exec.CommandContext(ctx, h.generateCLIPEmbeddingsPath, args...)
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -401,15 +402,15 @@ func (h *DefaultHandler) runToWrap(ctx context.Context, cancelFn context.CancelF
 	h.handlerLoggerProducer.Info(HandlerStartedMessage)
 
 	// Check if the run clip executable exists
-	if _, err := os.Stat(h.runClipPath); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(h.runCLIPPath); errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf(
 			"run clip executable not found at path: %s",
-			h.runClipPath,
+			h.runCLIPPath,
 		)
 	}
 
 	// Execute the command with a context
-	cmd := exec.CommandContext(ctx, h.runClipPath)
+	cmd := exec.CommandContext(ctx, h.runCLIPPath)
 
 	// Stream output line by line
 	stdout, err := cmd.StdoutPipe()
@@ -528,6 +529,10 @@ func (h *DefaultHandler) Run(ctx context.Context, cancelFn context.CancelFunc) e
 	// Set running to true
 	h.isRunning.Store(true)
 
+	// Reset clip application state
+	h.clipApplicationInitialized.Store(false)
+	h.clipApplicationStarted.Store(false)
+
 	h.handlerMutex.Unlock()
 
 	// Create a logger producer
@@ -640,11 +645,20 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 		return nil
 	}
 
-	// Check if the Clip Application has been initialized
-	if !h.clipApplicationInitialized {
-		if line == HailoClipApplicationInitializedMessage {
-			h.clipApplicationInitialized = true
-			h.handlerLoggerProducer.Info(HailoClipApplicationInitializedMessage)
+	// Check if the CLIP Application has been initialized
+	if !h.clipApplicationInitialized.Load() {
+		if line == HailoCLIPApplicationInitialized {
+			h.clipApplicationInitialized.Store(true)
+			h.handlerLoggerProducer.Info(HailoCLIPApplicationInitializedMessage)
+		}
+		return nil
+	}
+
+	// Check if the CLIP Application has started
+	if !h.clipApplicationStarted.Load() {
+		if line == HailoCLIPApplicationStarted {
+			h.clipApplicationStarted.Store(true)
+			h.handlerLoggerProducer.Info(HailoCLIPApplicationStartedMessage)
 		}
 		return nil
 	}
@@ -655,7 +669,9 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 
 	// Check if there is a classification in the line
 	if line == NoClassification {
-		h.handlerLoggerProducer.Info("No classification detected")
+		if h.handlerLoggerProducer.IsDebug() {
+			h.handlerLoggerProducer.Debug("No classification detected")
+		}
 		h.classification = nil
 		return nil
 	}
@@ -732,7 +748,9 @@ func (h *DefaultHandler) GetClassification() (*Classification, error) {
 //
 // An error if any issue occurs during processing the line.
 func (h *DefaultHandler) handleStderrLine(line string) error {
-	// Log the stderr line as a warning
-	h.handlerLoggerProducer.Warning(fmt.Sprintf("stderr: %s", line))
+	if h.clipApplicationStarted.Load() {
+		// Log the stderr line as a warning
+		h.handlerLoggerProducer.Warning(fmt.Sprintf("stderr: %s", line))
+	}
 	return nil
 }
