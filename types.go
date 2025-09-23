@@ -49,6 +49,7 @@ type (
 		hasStartedSending             atomic.Bool
 		classificationsChSize 		   int	
 		classificationsCh             chan *Classification
+		readyCh 						chan struct{}
 	}
 )
 
@@ -212,6 +213,7 @@ func NewDefaultHandler(
 		logger:                     logger,
 		debug:                      debug,
 		classificationsChSize:      classificationsChSize,
+		readyCh:                    make(chan struct{}),
 	}, nil
 }
 
@@ -584,6 +586,10 @@ func (h *DefaultHandler) close() {
 
 	// Close the classifications channel
 	close(h.classificationsCh)
+	h.classificationsCh = nil
+
+	// Reset the ready channel
+	h.readyCh = make(chan struct{})
 }
 
 // StartSendingClassifications sets the handler to start sending classifications through the classifications channel.
@@ -630,6 +636,30 @@ func (h *DefaultHandler) GetClassificationsChannel() (<-chan *Classification, er
 	return h.classificationsCh, nil
 }
 
+// WaitUntilReady waits until the handler is ready to process classifications.
+//
+// Parameters:
+//
+// ctx: Context for managing cancellation and timeouts.
+//
+// Returns:
+//
+// An error if the context is cancelled before the handler is ready.
+func (h *DefaultHandler) WaitUntilReady(ctx context.Context) error {
+	h.handlerMutex.Lock()
+	if !h.IsRunning() {
+		h.handlerMutex.Unlock()
+		return ErrHandlerIsNotRunning
+	}
+	h.handlerMutex.Unlock()
+
+	select {
+	case <-h.readyCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 // scanLines reads lines from the provided reader and processes them using the given lineHandler.
 //
@@ -734,6 +764,9 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 		if line == HailoCLIPApplicationStarted {
 			h.clipApplicationStarted.Store(true)
 			h.handlerLoggerProducer.Info(HailoCLIPApplicationStartedMessage)
+
+			// Signal that the handler is ready
+			close(h.readyCh)
 		}
 		return nil
 	}
