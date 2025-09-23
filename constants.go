@@ -41,8 +41,11 @@ const (
 	// GenerateEmbeddingsThresholdArgument is the argument for the threshold in the generate embeddings script
 	GenerateEmbeddingsThresholdArgument = "--threshold"
 
-	// HandlerStartedMessage is the message logged when the handler starts
-	HandlerStartedMessage = "CLIP handler started"
+	// HandlerInitializedMessage is the message logged when the handler is initialized
+	HandlerInitializedMessage = "CLIP handler initialized"
+
+	// HandlerReadyMessage is the message logged when the handler is ready
+	HandlerReadyMessage = "CLIP handler is ready"
 
 	// CloseTimeout is the timeout for closing the handler
 	CloseTimeout = 5 * time.Second

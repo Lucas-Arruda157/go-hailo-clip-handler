@@ -409,8 +409,8 @@ func (h *DefaultHandler) runToWrap(ctx context.Context, cancelFn context.CancelF
 	// Reset the stdout lines read counter
 	h.stdoutLinesRead = 0
 
-	// Log the start of reading measures
-	h.handlerLoggerProducer.Info(HandlerStartedMessage)
+	// Log the initialization of reading measures
+	h.handlerLoggerProducer.Info(HandlerInitializedMessage)
 
 	// Check if the run clip executable exists
 	if _, err := os.Stat(h.runCLIPPath); errors.Is(err, os.ErrNotExist) {
@@ -767,6 +767,7 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 
 			// Signal that the handler is ready
 			close(h.readyCh)
+			h.handlerLoggerProducer.Info(HandlerReadyMessage)
 		}
 		return nil
 	}
