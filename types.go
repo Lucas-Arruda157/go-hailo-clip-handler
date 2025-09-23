@@ -46,6 +46,9 @@ type (
 		embeddingsJSONPath               string
 		minimumConfidenceThreshold       float32
 		debug                            bool
+		hasStartedSending             atomic.Bool
+		classificationsChSize 		   int	
+		classificationsCh             chan *Classification
 	}
 )
 
@@ -137,6 +140,7 @@ func (c *Classification) GetConfidence() float32 {
 // negativeLabels: Slice of negative labels for classification (optional, can be nil).
 // minimumConfidenceThreshold: Minimum confidence threshold for valid classifications.
 // logger: Logger instance for logging messages.
+// classificationsChSize: Size of the classifications channel (must be greater than 0).
 // debug: Whether to enable debug logging.
 //
 // Returns:
@@ -150,6 +154,7 @@ func NewDefaultHandler(
 	negativeLabels []string,
 	minimumConfidenceThreshold float32,
 	logger goconcurrentlogger.Logger,
+	classificationsChSize int,
 	debug bool,
 ) (*DefaultHandler, error) {
 	// Check if the logger is nil
@@ -191,8 +196,13 @@ func NewDefaultHandler(
 		return nil, ErrInvalidMinimumConfidenceThreshold
 	}
 
+	// Check if the classificationsChSize is valid
+	if classificationsChSize <= 0 {
+		return nil, ErrInvalidClassificationsChSize
+	}
+
 	// Create a new DefaultHandler instance
-	handler := &DefaultHandler{
+	return &DefaultHandler{
 		generateCLIPEmbeddingsPath: generateCLIPEmbeddingsPath,
 		embeddingsJSONPath:         embeddingsJSONPath,
 		runCLIPPath:                runCLIPPath,
@@ -201,9 +211,8 @@ func NewDefaultHandler(
 		minimumConfidenceThreshold: minimumConfidenceThreshold,
 		logger:                     logger,
 		debug:                      debug,
-	}
-
-	return handler, nil
+		classificationsChSize:      classificationsChSize,
+	}, nil
 }
 
 // generateEmbeddingsJSONContent generates the content for the embeddings JSON file.
@@ -517,14 +526,7 @@ func (h *DefaultHandler) Run(ctx context.Context, cancelFn context.CancelFunc) e
 		h.handlerMutex.Unlock()
 		return ErrHandlerAlreadyRunning
 	}
-	defer func() {
-		h.handlerMutex.Lock()
-
-		// Set running to false
-		h.isRunning.Store(false)
-
-		h.handlerMutex.Unlock()
-	}()
+	defer h.close()
 
 	// Set running to true
 	h.isRunning.Store(true)
@@ -532,6 +534,12 @@ func (h *DefaultHandler) Run(ctx context.Context, cancelFn context.CancelFunc) e
 	// Reset clip application state
 	h.clipApplicationInitialized.Store(false)
 	h.clipApplicationStarted.Store(false)
+
+	// Reset current classification
+	h.classification = nil
+
+	// Create the classifications channel
+	h.classificationsCh = make(chan *Classification, h.classificationsChSize)
 
 	h.handlerMutex.Unlock()
 
@@ -555,6 +563,73 @@ func (h *DefaultHandler) Run(ctx context.Context, cancelFn context.CancelFunc) e
 		h.handlerLoggerProducer,
 	)()
 }
+
+// close closes the handler and releases resources, but the context must be cancelled externally.
+func (h *DefaultHandler) close() {
+	h.handlerMutex.Lock()
+
+	// Check if the handler is already closed
+	if !h.IsRunning() { 
+		h.handlerMutex.Unlock()
+		return
+	}
+
+	// Mark the handler as closed
+	h.isRunning.Store(false)
+
+	h.handlerMutex.Unlock()
+
+	// Reset has started sending state
+	h.hasStartedSending.Store(false)
+
+	// Close the classifications channel
+	close(h.classificationsCh)
+}
+
+// StartSendingClassifications sets the handler to start sending classifications through the classifications channel.
+//
+// Returns:
+//
+// An error if the handler is not running.
+func (h *DefaultHandler) StartSendingClassifications() error {
+	h.handlerMutex.Lock()
+	defer h.handlerMutex.Unlock()
+	if !h.IsRunning() {
+		return ErrHandlerIsNotRunning
+	}
+	h.hasStartedSending.Store(true)
+	return nil
+}
+
+// StopSendingClassifications sets the handler to stop sending classifications through the classifications channel.
+//
+// Returns:
+//
+// An error if the handler is not running.
+func (h *DefaultHandler) StopSendingClassifications() error {
+	h.handlerMutex.Lock()
+	defer h.handlerMutex.Unlock()
+	if !h.IsRunning() {
+		return ErrHandlerIsNotRunning
+	}
+	h.hasStartedSending.Store(false)
+	return nil
+}
+
+// GetClassificationsChannel returns the channel through which classifications are sent.
+//
+// Returns:
+//
+// A read-only channel of classifications, or an error if the handler is not running.
+func (h *DefaultHandler) GetClassificationsChannel() (<-chan *Classification, error) {
+	h.handlerMutex.Lock()
+	defer h.handlerMutex.Unlock()
+	if !h.IsRunning() {
+		return nil, ErrHandlerIsNotRunning
+	}
+	return h.classificationsCh, nil
+}
+
 
 // scanLines reads lines from the provided reader and processes them using the given lineHandler.
 //
@@ -673,6 +748,24 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 			h.handlerLoggerProducer.Debug("No classification detected")
 		}
 		h.classification = nil
+
+		// Send nil classification if started sending
+		if h.hasStartedSending.Load() {
+			select {
+			case h.classificationsCh <- nil:
+				if h.handlerLoggerProducer.IsDebug() {
+					h.handlerLoggerProducer.Debug(
+						"Sent no classification message",
+					)
+				}
+			default:
+				if h.handlerLoggerProducer.IsDebug() {
+					h.handlerLoggerProducer.Debug(
+						"Classifications channel is full, dropping no classification message",
+					)
+				}
+			}
+		}	
 		return nil
 	}
 
@@ -715,6 +808,28 @@ func (h *DefaultHandler) handleStdoutLine(line string) error {
 		}
 	}
 	h.classification = classification
+
+	// Send the classification if started sending
+	if h.hasStartedSending.Load() {
+		select {
+		case h.classificationsCh <- classification:
+			if h.handlerLoggerProducer.IsDebug() {
+				h.handlerLoggerProducer.Debug(
+					fmt.Sprintf(
+						"Sent classification: label='%s', confidence=%f",
+						classification.GetLabel(),
+						classification.GetConfidence(),
+					),
+				)
+			}
+		default:
+			if h.handlerLoggerProducer.IsDebug() {
+				h.handlerLoggerProducer.Debug(
+					"Classifications channel is full, dropping classification message",
+				)
+			}
+		}
+	}
 	return nil
 }
 

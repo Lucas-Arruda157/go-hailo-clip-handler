@@ -9,6 +9,9 @@ type (
 	Handler interface {
 		GenerateEmbeddings(ctx context.Context) error
 		Run(ctx context.Context, cancelFn context.CancelFunc) error
+		StartSendingClassifications() error
+		StopSendingClassifications() error
+		GetClassificationsChannel() (<-chan *Classification, error)
 		IsRunning() bool
 		GetClassification() (*Classification, error)
 	}

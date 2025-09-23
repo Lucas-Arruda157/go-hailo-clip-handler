@@ -16,4 +16,6 @@ var (
 	ErrEmptyNegativeLabel                = errors.New("negative label cannot be empty")
 	ErrInvalidMinimumConfidenceThreshold = errors.New("minimum confidence threshold must be between 0.0 and 1.0")
 	ErrNilClassificationHandler          = errors.New("classification handler cannot be nil")
+	ErrInvalidClassificationsChSize      = errors.New("classifications channel size must be greater than 0")
+	ErrHandlerIsNotRunning				 = errors.New("handler is not running")
 )
